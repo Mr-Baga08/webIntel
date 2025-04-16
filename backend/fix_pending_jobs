@@ -1,0 +1,69 @@
+"""
+Script to fix pending jobs that got stuck.
+Run this with:
+python fix_pending_jobs.py
+"""
+
+import os
+import sys
+import logging
+from datetime import datetime
+from sqlalchemy import create_engine, MetaData, Table, Column, String, update
+from sqlalchemy.orm import sessionmaker
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+def fix_pending_jobs():
+    """Fix any jobs stuck in 'pending' state."""
+    
+    # Connect to database
+    DB_URL = os.environ.get('DATABASE_URL', 'sqlite:///backend/webintel.db')
+    engine = create_engine(DB_URL)
+    
+    # Use raw SQL to avoid model issues
+    metadata = MetaData()
+    scrape_runs = Table('scrape_runs', metadata, 
+                        Column('id', String),  # We don't need exact types for the update
+                        Column('status', String),
+                        Column('updated_at', String))
+    metadata.reflect(bind=engine)
+    
+    # Create a connection
+    conn = engine.connect()
+    
+    try:
+        # Find all pending jobs using raw SQL
+        result = conn.execute("SELECT id, query FROM scrape_runs WHERE status = 'pending'")
+        pending_jobs = result.fetchall()
+        logger.info(f"Found {len(pending_jobs)} jobs in 'pending' state")
+        
+        # Update their status
+        for job in pending_jobs:
+            job_id = job[0]
+            query = job[1]
+            logger.info(f"Fixing job {job_id}: {query}")
+            
+            # Use update statement
+            stmt = update(scrape_runs).where(scrape_runs.c.id == job_id).values(
+                status='running',
+                updated_at=datetime.utcnow()
+            )
+            conn.execute(stmt)
+            
+        # Commit changes
+        conn.commit()
+        logger.info("All pending jobs have been updated to 'running' status")
+        
+    except Exception as e:
+        logger.error(f"Error fixing pending jobs: {str(e)}")
+        conn.rollback()
+    finally:
+        conn.close()
+
+if __name__ == "__main__":
+    fix_pending_jobs()

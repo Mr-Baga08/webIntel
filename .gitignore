@@ -1,0 +1,18 @@
+# Virtual environments (commonly named "venv" and "myenv")
+venv/
+myenv/
+
+# Python cache directories
+__pycache__/
+
+# Pytest cache
+.pytest_cache/
+
+# Mypy cache
+.mypy_cache/
+
+webintel.db
+
+
+
+frontend/node_modules
