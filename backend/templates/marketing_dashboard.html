@@ -1,0 +1,503 @@
+{% extends 'layout.html' %}
+
+{% block title %}WebIntel - Marketing Dashboard{% endblock %}
+
+{% block content %}
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-database me-2"></i>Marketing Data Sources
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row" id="sourceCards">
+                    <div class="col-12 text-center">
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- New Marketing Modal -->
+<div class="modal fade" id="newMarketingModal" tabindex="-1" aria-labelledby="newMarketingModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="newMarketingModalLabel">New Marketing Search</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="marketingSearchForm">
+                    <div class="mb-3">
+                        <label for="marketingQuery" class="form-label">Marketing Query</label>
+                        <input type="text" class="form-control" id="marketingQuery" placeholder="Enter marketing search query">
+                        <div class="form-text">Enter a specific marketing topic to search for (e.g., "content marketing strategy")</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Select Data Sources</label>
+                        <div id="sourcesCheckboxes" class="row">
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input source-checkbox" type="checkbox" value="web" id="sourceWeb" checked>
+                                    <label class="form-check-label" for="sourceWeb">
+                                        Web Pages
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input source-checkbox" type="checkbox" value="pdf" id="sourcePdf" checked>
+                                    <label class="form-check-label" for="sourcePdf">
+                                        PDF Documents
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input source-checkbox" type="checkbox" value="social" id="sourceSocial" checked>
+                                    <label class="form-check-label" for="sourceSocial">
+                                        Social Media
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input source-checkbox" type="checkbox" value="video" id="sourceVideo" checked>
+                                    <label class="form-check-label" for="sourceVideo">
+                                        Video Content
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input source-checkbox" type="checkbox" value="podcast" id="sourcePodcast" checked>
+                                    <label class="form-check-label" for="sourcePodcast">
+                                        Podcasts
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input source-checkbox" type="checkbox" value="dataset" id="sourceDataset" checked>
+                                    <label class="form-check-label" for="sourceDataset">
+                                        Datasets
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="itemsPerSource" class="form-label">Maximum Items Per Source</label>
+                        <select class="form-select" id="itemsPerSource">
+                            <option value="3">3 items per source</option>
+                            <option value="5" selected>5 items per source</option>
+                            <option value="10">10 items per source</option>
+                            <option value="15">15 items per source</option>
+                            <option value="20">20 items per source</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="startMarketingSearchBtn">Start Search</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Process URL Modal -->
+<div class="modal fade" id="processUrlModal" tabindex="-1" aria-labelledby="processUrlModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="processUrlModalLabel">Process Marketing URL</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="processUrlForm">
+                    <div class="mb-3">
+                        <label for="marketingUrl" class="form-label">URL</label>
+                        <input type="url" class="form-control" id="marketingUrl" placeholder="Enter URL to process">
+                        <div class="form-text">Enter any marketing-related URL (webpage, PDF, video, podcast)</div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="processUrlBtn">Process URL</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    let sourceChart = null;
+    
+    $(document).ready(function() {
+        // Load initial data
+        loadMarketingStats();
+        loadRecentRuns();
+        loadSources();
+        
+        // Set up event handlers
+        $('#startMarketingSearchBtn').click(startMarketingSearch);
+        $('#processUrlBtn').click(processMarketingUrl);
+    });
+    
+    function loadMarketingStats() {
+        // Load marketing statistics
+        $.ajax({
+            url: `${API_BASE_URL}/runs?limit=100`,
+            type: 'GET',
+            success: function(data) {
+                // Count marketing runs (those with marketing in the query or config)
+                const marketingRuns = data.runs.filter(run => 
+                    run.query.toLowerCase().includes('marketing') || 
+                    (run.config && run.config.marketing_query)
+                );
+                
+                $('#totalMarketingRuns').text(marketingRuns.length);
+                
+                // Count items
+                let totalItems = 0;
+                marketingRuns.forEach(run => {
+                    totalItems += run.pages_crawled || 0;
+                });
+                
+                $('#totalMarketingItems').text(totalItems);
+                
+                // Update source count
+                $.ajax({
+                    url: `${API_BASE_URL}/marketing/sources`,
+                    type: 'GET',
+                    success: function(sourceData) {
+                        $('#availableSources').text(sourceData.sources.length);
+                        updateSourceDistribution(marketingRuns);
+                    }
+                });
+            }
+        });
+    }
+    
+    function updateSourceDistribution(runs) {
+        // Get recent completed marketing runs
+        const completedRuns = runs.filter(run => run.status === 'completed').slice(0, 5);
+        
+        if (completedRuns.length === 0) {
+            $('#sourceDistributionChart').html('<p class="text-center">No completed marketing runs yet</p>');
+            return;
+        }
+        
+        // We'll use the most recent run for the chart
+        const recentRun = completedRuns[0];
+        
+        $.ajax({
+            url: `${API_BASE_URL}/marketing/run/${recentRun.id}/sources`,
+            type: 'GET',
+            success: function(data) {
+                // Create chart data
+                const labels = data.sources.map(s => s.name);
+                const values = data.sources.map(s => s.count);
+                const colors = [
+                    '#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b', '#858796'
+                ];
+                
+                // Destroy existing chart if any
+                if (sourceChart) {
+                    sourceChart.destroy();
+                }
+                
+                // Create chart
+                const ctx = document.createElement('canvas');
+                ctx.id = 'sourceDistribution';
+                ctx.height = 250;
+                $('#sourceDistributionChart').empty().append(ctx);
+                
+                sourceChart = new Chart(ctx, {
+                    type: 'pie',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            data: values,
+                            backgroundColor: colors,
+                            hoverBackgroundColor: colors.map(c => c + 'aa')
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        legend: {
+                            position: 'right'
+                        }
+                    }
+                });
+            },
+            error: function() {
+                $('#sourceDistributionChart').html('<p class="text-center text-danger">Failed to load source distribution</p>');
+            }
+        });
+    }
+    
+    function loadRecentRuns() {
+        // Load recent marketing runs
+        $.ajax({
+            url: `${API_BASE_URL}/runs?limit=10`,
+            type: 'GET',
+            success: function(data) {
+                // Filter for marketing runs
+                const marketingRuns = data.runs.filter(run => 
+                    run.query.toLowerCase().includes('marketing') || 
+                    (run.config && run.config.marketing_query)
+                );
+                
+                if (marketingRuns.length === 0) {
+                    $('#recentMarketingRuns').html('<tr><td colspan="6" class="text-center">No marketing runs found</td></tr>');
+                    return;
+                }
+                
+                let html = '';
+                marketingRuns.forEach(run => {
+                    html += `
+                        <tr>
+                            <td>${run.id}</td>
+                            <td>${run.query}</td>
+                            <td>${getStatusBadge(run.status)}</td>
+                            <td>${run.pages_crawled}</td>
+                            <td>${formatDateTime(run.created_at)}</td>
+                            <td>
+                                <a href="/marketing/runs/${run.id}" class="btn btn-sm btn-primary">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                            </td>
+                        </tr>
+                    `;
+                });
+                
+                $('#recentMarketingRuns').html(html);
+            },
+            error: function() {
+                $('#recentMarketingRuns').html('<tr><td colspan="6" class="text-center text-danger">Failed to load recent runs</td></tr>');
+            }
+        });
+    }
+    
+    function loadSources() {
+        // Load available marketing data sources
+        $.ajax({
+            url: `${API_BASE_URL}/marketing/sources`,
+            type: 'GET',
+            success: function(data) {
+                let html = '';
+                
+                // Create source cards
+                data.sources.forEach(source => {
+                    html += `
+                        <div class="col-md-4 mb-3">
+                            <div class="card h-100">
+                                <div class="card-body">
+                                    <h5 class="card-title">${source.name}</h5>
+                                    <p class="card-text">${source.description}</p>
+                                </div>
+                                <div class="card-footer bg-transparent border-top-0">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input source-toggle" type="checkbox" id="toggle${source.id}" checked data-source="${source.id}">
+                                        <label class="form-check-label" for="toggle${source.id}">Include in searches</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                $('#sourceCards').html(html);
+                
+                // Set up toggle handlers
+                $('.source-toggle').change(function() {
+                    const sourceId = $(this).data('source');
+                    const isChecked = $(this).is(':checked');
+                    
+                    // Update corresponding checkbox in the modal
+                    $(`#source${sourceId.charAt(0).toUpperCase() + sourceId.slice(1)}`).prop('checked', isChecked);
+                });
+            },
+            error: function() {
+                $('#sourceCards').html('<div class="col-12 text-center text-danger">Failed to load sources</div>');
+            }
+        });
+    }
+    
+    function startMarketingSearch() {
+        // Get form data
+        const query = $('#marketingQuery').val().trim();
+        
+        if (!query) {
+            showError('Please enter a marketing query');
+            return;
+        }
+        
+        // Get selected sources
+        const sources = [];
+        $('.source-checkbox:checked').each(function() {
+            sources.push($(this).val());
+        });
+        
+        if (sources.length === 0) {
+            showError('Please select at least one data source');
+            return;
+        }
+        
+        // Get items per source
+        const maxItemsPerSource = parseInt($('#itemsPerSource').val());
+        
+        // Create the marketing search
+        $.ajax({
+            url: `${API_BASE_URL}/marketing/collect`,
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                query: query,
+                sources: sources,
+                max_items_per_source: maxItemsPerSource
+            }),
+            success: function(data) {
+                // Close modal
+                $('#newMarketingModal').modal('hide');
+                
+                // Show success message
+                alert(`Marketing search started with ID ${data.run_id}. You will be redirected to the details page.`);
+                
+                // Redirect to run details
+                window.location.href = `/marketing/runs/${data.run_id}`;
+            },
+            error: function(xhr) {
+                let errorMsg = 'Failed to start marketing search';
+                if (xhr.responseJSON && xhr.responseJSON.error) {
+                    errorMsg = xhr.responseJSON.error;
+                }
+                showError(errorMsg);
+            }
+        });
+    }
+    
+    function processMarketingUrl() {
+        // Get URL
+        const url = $('#marketingUrl').val().trim();
+        
+        if (!url) {
+            showError('Please enter a URL');
+            return;
+        }
+        
+        // Process the URL
+        $.ajax({
+            url: `${API_BASE_URL}/marketing/process-url`,
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                url: url
+            }),
+            success: function(data) {
+                // Close modal
+                $('#processUrlModal').modal('hide');
+                
+                // Show success message
+                alert(`URL processed successfully with ID ${data.page_id}. You can view it in run ${data.run_id}.`);
+                
+                // Redirect to run details
+                window.location.href = `/marketing/runs/${data.run_id}`;
+            },
+            error: function(xhr) {
+                let errorMsg = 'Failed to process URL';
+                if (xhr.responseJSON && xhr.responseJSON.error) {
+                    errorMsg = xhr.responseJSON.error;
+                }
+                showError(errorMsg);
+            }
+        });
+    }
+</script>
+{% endblock %}center">
+                <h5 class="mb-0">
+                    <i class="fas fa-bullhorn me-2"></i>Marketing Intelligence Dashboard
+                </h5>
+                <div>
+                    <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#newMarketingModal">
+                        <i class="fas fa-search me-1"></i>New Marketing Search
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row mb-4">
+                    <div class="col-md-4">
+                        <div class="card bg-primary text-white">
+                            <div class="card-body text-center">
+                                <h3 id="totalMarketingRuns">-</h3>
+                                <p class="mb-0">Total Marketing Runs</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card bg-success text-white">
+                            <div class="card-body text-center">
+                                <h3 id="totalMarketingItems">-</h3>
+                                <p class="mb-0">Marketing Items Collected</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card bg-info text-white">
+                            <div class="card-body text-center">
+                                <h3 id="availableSources">-</h3>
+                                <p class="mb-0">Available Sources</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <h5><i class="fas fa-chart-pie me-2"></i>Source Distribution</h5>
+                        <div id="sourceDistributionChart" style="height: 250px;" class="d-flex align-items-center justify-content-center">
+                            <div class="spinner"></div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <h5><i class="fas fa-list me-2"></i>Recent Marketing Searches</h5>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Query</th>
+                                        <th>Status</th>
+                                        <th>Items</th>
+                                        <th>Created</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="recentMarketingRuns">
+                                    <tr>
+                                        <td colspan="6" class="text-center">
+                                            <div class="spinner"></div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+

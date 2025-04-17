@@ -1,0 +1,658 @@
+{% extends 'layout.html' %}
+
+{% block title %}WebIntel - Enhanced Content Dashboard{% endblock %}
+
+{% block content %}
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-globe me-2"></i>Enhanced Content Intelligence Dashboard
+                </h5>
+                <div>
+                    <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#newContentModal">
+                        <i class="fas fa-search me-1"></i>New Content Search
+                    </button>
+                    <button class="btn btn-sm btn-outline-primary ms-2" data-bs-toggle="modal" data-bs-target="#processUrlModal">
+                        <i class="fas fa-link me-1"></i>Process URL
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="card bg-primary text-white">
+                            <div class="card-body text-center">
+                                <h3 id="totalContentRuns">-</h3>
+                                <p class="mb-0">Total Content Runs</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-success text-white">
+                            <div class="card-body text-center">
+                                <h3 id="totalContentItems">-</h3>
+                                <p class="mb-0">Items Collected</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-info text-white">
+                            <div class="card-body text-center">
+                                <h3 id="availableSources">-</h3>
+                                <p class="mb-0">Available Sources</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-warning text-white">
+                            <div class="card-body text-center">
+                                <h3 id="availableDomains">-</h3>
+                                <p class="mb-0">Knowledge Domains</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <h5><i class="fas fa-chart-pie me-2"></i>Domain Distribution</h5>
+                        <div id="domainDistributionChart" style="height: 250px;" class="d-flex align-items-center justify-content-center">
+                            <div class="spinner"></div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <h5><i class="fas fa-list me-2"></i>Recent Content Searches</h5>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Query</th>
+                                        <th>Domain</th>
+                                        <th>Status</th>
+                                        <th>Items</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="recentContentRuns">
+                                    <tr>
+                                        <td colspan="6" class="text-center">
+                                            <div class="spinner"></div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-3">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-book me-2"></i>Content Domains
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row" id="domainCards">
+                    <div class="col-12 text-center">
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-3">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-database me-2"></i>Content Sources
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row" id="sourceCards">
+                    <div class="col-12 text-center">
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- New Content Modal -->
+<div class="modal fade" id="newContentModal" tabindex="-1" aria-labelledby="newContentModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="newContentModalLabel">New Content Search</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="contentSearchForm">
+                    <div class="mb-3">
+                        <label for="contentQuery" class="form-label">Search Query</label>
+                        <input type="text" class="form-control" id="contentQuery" placeholder="Enter search query">
+                        <div class="form-text">Enter any topic to search for content across multiple sources</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="domainExpertise" class="form-label">Domain Expertise (Optional)</label>
+                        <select class="form-select" id="domainExpertise">
+                            <option value="">General (no specific domain)</option>
+                            <option value="marketing">Marketing</option>
+                            <option value="legal">Legal</option>
+                            <option value="academic">Academic</option>
+                            <option value="technical">Technical</option>
+                        </select>
+                        <div class="form-text">Select a domain to apply specialized content analysis</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Select Data Sources</label>
+                        <div id="sourcesCheckboxes" class="row">
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input source-checkbox" type="checkbox" value="web" id="sourceWeb" checked>
+                                    <label class="form-check-label" for="sourceWeb">
+                                        Web Pages
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input source-checkbox" type="checkbox" value="pdf" id="sourcePdf" checked>
+                                    <label class="form-check-label" for="sourcePdf">
+                                        PDF Documents
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input source-checkbox" type="checkbox" value="social" id="sourceSocial" checked>
+                                    <label class="form-check-label" for="sourceSocial">
+                                        Social Media
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input source-checkbox" type="checkbox" value="video" id="sourceVideo" checked>
+                                    <label class="form-check-label" for="sourceVideo">
+                                        Video Content
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input source-checkbox" type="checkbox" value="podcast" id="sourcePodcast" checked>
+                                    <label class="form-check-label" for="sourcePodcast">
+                                        Podcasts
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input source-checkbox" type="checkbox" value="dataset" id="sourceDataset" checked>
+                                    <label class="form-check-label" for="sourceDataset">
+                                        Datasets
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="itemsPerSource" class="form-label">Maximum Items Per Source</label>
+                        <select class="form-select" id="itemsPerSource">
+                            <option value="3">3 items per source</option>
+                            <option value="5" selected>5 items per source</option>
+                            <option value="10">10 items per source</option>
+                            <option value="15">15 items per source</option>
+                            <option value="20">20 items per source</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="startContentSearchBtn">Start Search</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Process URL Modal -->
+<div class="modal fade" id="processUrlModal" tabindex="-1" aria-labelledby="processUrlModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="processUrlModalLabel">Process Content URL</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="processUrlForm">
+                    <div class="mb-3">
+                        <label for="contentUrl" class="form-label">URL</label>
+                        <input type="url" class="form-control" id="contentUrl" placeholder="Enter URL to process">
+                        <div class="form-text">Enter any URL (webpage, PDF, video, podcast, dataset)</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="urlDomainExpertise" class="form-label">Domain Expertise (Optional)</label>
+                        <select class="form-select" id="urlDomainExpertise">
+                            <option value="">Auto-detect domain</option>
+                            <option value="marketing">Marketing</option>
+                            <option value="legal">Legal</option>
+                            <option value="academic">Academic</option>
+                            <option value="technical">Technical</option>
+                        </select>
+                        <div class="form-text">Select a domain or let the system detect it automatically</div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="processUrlBtn">Process URL</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    let domainChart = null;
+    
+    $(document).ready(function() {
+        // Load initial data
+        loadStats();
+        loadRecentRuns();
+        loadDomains();
+        loadSources();
+        
+        // Set up event handlers
+        $('#startContentSearchBtn').click(startContentSearch);
+        $('#processUrlBtn').click(processContentUrl);
+    });
+    
+    function loadStats() {
+        // Load statistics
+        $.ajax({
+            url: `${API_BASE_URL}/runs?limit=100`,
+            type: 'GET',
+            success: function(data) {
+                // Count enhanced content runs
+                const contentRuns = data.runs.filter(run => 
+                    run.config && run.config.job_type === 'enhanced_content'
+                );
+                
+                $('#totalContentRuns').text(contentRuns.length);
+                
+                // Count items
+                let totalItems = 0;
+                contentRuns.forEach(run => {
+                    totalItems += run.pages_crawled || 0;
+                });
+                
+                $('#totalContentItems').text(totalItems);
+                
+                // Load source count
+                $.ajax({
+                    url: `${API_BASE_URL}/enhanced/sources`,
+                    type: 'GET',
+                    success: function(sourceData) {
+                        $('#availableSources').text(sourceData.sources.length);
+                    }
+                });
+                
+                // Load domain count
+                $.ajax({
+                    url: `${API_BASE_URL}/enhanced/domains`,
+                    type: 'GET',
+                    success: function(domainData) {
+                        $('#availableDomains').text(domainData.domains.length);
+                        updateDomainDistribution(contentRuns);
+                    }
+                });
+            }
+        });
+    }
+    
+    function updateDomainDistribution(runs) {
+        // Get recent completed runs
+        const completedRuns = runs.filter(run => run.status === 'completed').slice(0, 5);
+        
+        if (completedRuns.length === 0) {
+            $('#domainDistributionChart').html('<p class="text-center">No completed content runs yet</p>');
+            return;
+        }
+        
+        // We'll use the most recent run for the chart
+        const recentRun = completedRuns[0];
+        
+        $.ajax({
+            url: `${API_BASE_URL}/enhanced/run/${recentRun.id}/domains`,
+            type: 'GET',
+            success: function(data) {
+                // Create chart data
+                const labels = data.domains.map(d => d.name);
+                const values = data.domains.map(d => d.count);
+                const colors = [
+                    '#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b', '#858796'
+                ];
+                
+                // Destroy existing chart if any
+                if (domainChart) {
+                    domainChart.destroy();
+                }
+                
+                // Create chart
+                const ctx = document.createElement('canvas');
+                ctx.id = 'domainDistribution';
+                ctx.height = 250;
+                $('#domainDistributionChart').empty().append(ctx);
+                
+                domainChart = new Chart(ctx, {
+                    type: 'pie',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            data: values,
+                            backgroundColor: colors,
+                            hoverBackgroundColor: colors.map(c => c + 'aa')
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        legend: {
+                            position: 'right'
+                        }
+                    }
+                });
+            },
+            error: function() {
+                $('#domainDistributionChart').html('<p class="text-center text-danger">Failed to load domain distribution</p>');
+            }
+        });
+    }
+    
+    function loadRecentRuns() {
+        // Load recent enhanced content runs
+        $.ajax({
+            url: `${API_BASE_URL}/runs?limit=10`,
+            type: 'GET',
+            success: function(data) {
+                // Filter for enhanced content runs
+                const contentRuns = data.runs.filter(run => 
+                    run.config && run.config.job_type === 'enhanced_content'
+                );
+                
+                if (contentRuns.length === 0) {
+                    $('#recentContentRuns').html('<tr><td colspan="6" class="text-center">No content runs found</td></tr>');
+                    return;
+                }
+                
+                let html = '';
+                contentRuns.forEach(run => {
+                    // Get domain
+                    const config = run.config || {};
+                    const domain = config.domain_expertise || 'General';
+                    
+                    html += `
+                        <tr>
+                            <td>${run.id}</td>
+                            <td>${run.query}</td>
+                            <td>${domain}</td>
+                            <td>${getStatusBadge(run.status)}</td>
+                            <td>${run.pages_crawled}</td>
+                            <td>
+                                <a href="/enhanced/runs/${run.id}" class="btn btn-sm btn-primary">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                            </td>
+                        </tr>
+                    `;
+                });
+                
+                $('#recentContentRuns').html(html);
+            },
+            error: function() {
+                $('#recentContentRuns').html('<tr><td colspan="6" class="text-center text-danger">Failed to load recent runs</td></tr>');
+            }
+        });
+    }
+    
+    function loadDomains() {
+        // Load available content domains
+        $.ajax({
+            url: `${API_BASE_URL}/enhanced/domains`,
+            type: 'GET',
+            success: function(data) {
+                let html = '';
+                
+                // Create domain cards with appropriate icons
+                data.domains.forEach(domain => {
+                    let icon = 'fas fa-globe';
+                    let bgColor = 'bg-light';
+                    
+                    if (domain.id === 'marketing') {
+                        icon = 'fas fa-bullhorn';
+                        bgColor = 'bg-primary text-white';
+                    } else if (domain.id === 'legal') {
+                        icon = 'fas fa-gavel';
+                        bgColor = 'bg-danger text-white';
+                    } else if (domain.id === 'academic') {
+                        icon = 'fas fa-graduation-cap';
+                        bgColor = 'bg-success text-white';
+                    } else if (domain.id === 'technical') {
+                        icon = 'fas fa-code';
+                        bgColor = 'bg-info text-white';
+                    }
+                    
+                    html += `
+                        <div class="col-md-4 mb-3">
+                            <div class="card h-100">
+                                <div class="card-header ${bgColor}">
+                                    <h5 class="card-title mb-0"><i class="${icon} me-2"></i>${domain.name}</h5>
+                                </div>
+                                <div class="card-body">
+                                    <p class="card-text">${domain.description}</p>
+                                </div>
+                                <div class="card-footer">
+                                    <a href="/enhanced/${domain.id}" class="btn btn-sm btn-outline-primary">Browse ${domain.name} Content</a>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                $('#domainCards').html(html);
+            },
+            error: function() {
+                $('#domainCards').html('<div class="col-12 text-center text-danger">Failed to load domains</div>');
+            }
+        });
+    }
+    
+    function loadSources() {
+        // Load available content sources
+        $.ajax({
+            url: `${API_BASE_URL}/enhanced/sources`,
+            type: 'GET',
+            success: function(data) {
+                let html = '';
+                
+                // Create source cards with appropriate icons
+                data.sources.forEach(source => {
+                    let icon = 'fas fa-file';
+                    let bgColor = 'bg-light';
+                    
+                    if (source.id === 'web') {
+                        icon = 'fas fa-globe';
+                        bgColor = 'bg-primary text-white';
+                    } else if (source.id === 'pdf') {
+                        icon = 'fas fa-file-pdf';
+                        bgColor = 'bg-danger text-white';
+                    } else if (source.id === 'social') {
+                        icon = 'fas fa-hashtag';
+                        bgColor = 'bg-info text-white';
+                    } else if (source.id === 'video') {
+                        icon = 'fas fa-video';
+                        bgColor = 'bg-success text-white';
+                    } else if (source.id === 'podcast') {
+                        icon = 'fas fa-microphone';
+                        bgColor = 'bg-warning text-white';
+                    } else if (source.id === 'dataset') {
+                        icon = 'fas fa-table';
+                        bgColor = 'bg-secondary text-white';
+                    }
+                    
+                    html += `
+                        <div class="col-md-4 mb-3">
+                            <div class="card h-100">
+                                <div class="card-header ${bgColor}">
+                                    <h5 class="card-title mb-0"><i class="${icon} me-2"></i>${source.name}</h5>
+                                </div>
+                                <div class="card-body">
+                                    <p class="card-text">${source.description}</p>
+                                </div>
+                                <div class="card-footer">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input source-toggle" type="checkbox" id="toggle${source.id}" checked data-source="${source.id}">
+                                        <label class="form-check-label" for="toggle${source.id}">Include in searches</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                $('#sourceCards').html(html);
+                
+                // Set up toggle handlers
+                $('.source-toggle').change(function() {
+                    const sourceId = $(this).data('source');
+                    const isChecked = $(this).is(':checked');
+                    
+                    // Update corresponding checkbox in the modal
+                    $(`#source${sourceId.charAt(0).toUpperCase() + sourceId.slice(1)}`).prop('checked', isChecked);
+                });
+            },
+            error: function() {
+                $('#sourceCards').html('<div class="col-12 text-center text-danger">Failed to load sources</div>');
+            }
+        });
+    }
+    
+    function startContentSearch() {
+        // Get form data
+        const query = $('#contentQuery').val().trim();
+        
+        if (!query) {
+            showError('Please enter a search query');
+            return;
+        }
+        
+        // Get domain expertise
+        const domainExpertise = $('#domainExpertise').val();
+        
+        // Get selected sources
+        const sources = [];
+        $('.source-checkbox:checked').each(function() {
+            sources.push($(this).val());
+        });
+        
+        if (sources.length === 0) {
+            showError('Please select at least one data source');
+            return;
+        }
+        
+        // Get items per source
+        const maxItemsPerSource = parseInt($('#itemsPerSource').val());
+        
+        // Create the content search
+        $.ajax({
+            url: `${API_BASE_URL}/enhanced/collect`,
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                query: query,
+                domain_expertise: domainExpertise,
+                sources: sources,
+                max_items_per_source: maxItemsPerSource
+            }),
+            success: function(data) {
+                // Close modal
+                $('#newContentModal').modal('hide');
+                
+                // Show success message
+                alert(`Content search started with ID ${data.run_id}. You will be redirected to the details page.`);
+                
+                // Redirect to run details
+                window.location.href = `/enhanced/runs/${data.run_id}`;
+            },
+            error: function(xhr) {
+                let errorMsg = 'Failed to start content search';
+                if (xhr.responseJSON && xhr.responseJSON.error) {
+                    errorMsg = xhr.responseJSON.error;
+                }
+                showError(errorMsg);
+            }
+        });
+    }
+    
+    function processContentUrl() {
+        // Get URL
+        const url = $('#contentUrl').val().trim();
+        
+        if (!url) {
+            showError('Please enter a URL');
+            return;
+        }
+        
+        // Get domain expertise
+        const domainExpertise = $('#urlDomainExpertise').val();
+        
+        // Process the URL
+        $.ajax({
+            url: `${API_BASE_URL}/enhanced/process-url`,
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                url: url,
+                domain_expertise: domainExpertise
+            }),
+            success: function(data) {
+                // Close modal
+                $('#processUrlModal').modal('hide');
+                
+                // Show success message
+                alert(`URL processed successfully with ID ${data.page_id}. You can view it in run ${data.run_id}.`);
+                
+                // Redirect to run details
+                window.location.href = `/enhanced/runs/${data.run_id}`;
+            },
+            error: function(xhr) {
+                let errorMsg = 'Failed to process URL';
+                if (xhr.responseJSON && xhr.responseJSON.error) {
+                    errorMsg = xhr.responseJSON.error;
+                }
+                showError(errorMsg);
+            }
+        });
+    }
+</script>
+{% endblock %}

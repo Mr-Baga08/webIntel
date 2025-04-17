@@ -5,9 +5,11 @@ from flask import Flask, render_template, request, jsonify, redirect, url_for, g
 from flask_cors import CORS
 
 from .api.endpoints import api_bp
+from .api.enhanced_endpoints import enhanced_bp  # Import enhanced content endpoints
 from .api.limiter import limiter
 from .db.init_db import init_db, get_db
 from .scheduler import start_scheduler, shutdown_scheduler
+from .scheduler_enhanced import extend_scheduler  # Import enhanced scheduler extension
 from .models import ScrapeRun, ScrapedPage
 
 # Configure logging
@@ -48,6 +50,7 @@ def create_app(test_config=None):
     
     # Register blueprints
     app.register_blueprint(api_bp)
+    app.register_blueprint(enhanced_bp)  # Register enhanced blueprint
     
     # Initialize database
     with app.app_context():
@@ -81,6 +84,26 @@ def create_app(test_config=None):
     def run_detail(run_id):
         """Render the run detail page."""
         return render_template('run_detail.html', run_id=run_id)
+    
+    @app.route('/enhanced')
+    def enhanced_dashboard():
+        """Render the enhanced content dashboard."""
+        return render_template('enhanced_dashboard.html')
+    
+    @app.route('/enhanced/runs/<int:run_id>')
+    def enhanced_run_detail(run_id):
+        """Render the enhanced content run detail page."""
+        return render_template('enhanced_run_detail.html', run_id=run_id)
+    
+    # Domain-specific content pages
+    @app.route('/enhanced/<domain>')
+    def domain_dashboard(domain):
+        """Render the domain-specific dashboard."""
+        valid_domains = ['marketing', 'legal', 'academic', 'technical']
+        if domain not in valid_domains:
+            return redirect(url_for('enhanced_dashboard'))
+            
+        return render_template('domain_dashboard.html', domain=domain)
     
     # Start the scheduler during app creation
     if not scheduler_running:

@@ -1,0 +1,847 @@
+{% extends 'layout.html' %}
+
+{% block title %}WebIntel - Marketing Run Details{% endblock %}
+
+{% block content %}
+<div class="row mb-3">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="/">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="/marketing">Marketing</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Run Details</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-info-circle me-2"></i>Marketing Run Details
+                    <span id="runIdBadge" class="badge bg-secondary ms-2">ID: {{ run_id }}</span>
+                </h5>
+                <div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="autoRefreshSwitch" checked>
+                        <label class="form-check-label" for="autoRefreshSwitch">Auto-refresh</label>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div id="runDetails">
+                    <div class="text-center">
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-file-alt me-2"></i>Marketing Content
+                </h5>
+                <div class="d-flex align-items-center">
+                    <div class="input-group me-2" style="width: 300px;">
+                        <input type="text" class="form-control" id="searchInput" placeholder="Search content...">
+                        <button class="btn btn-outline-secondary" type="button" id="searchBtn">
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </div>
+                    <div class="dropdown">
+                        <button class="btn btn-outline-primary dropdown-toggle" type="button" id="sourceFilterDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                            All Sources
+                        </button>
+                        <ul class="dropdown-menu" aria-labelledby="sourceFilterDropdown" id="sourceFilterOptions">
+                            <li><a class="dropdown-item source-filter active" href="#" data-source="all">All Sources</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                            <th>Completed:</th>
+                            <td>${formatDateTime(run.completed_at) || 'Not completed'}</td>
+                        </tr>
+                        <tr>
+                            <th>Duration:</th>
+                            <td>${formatDuration(run.created_at, run.completed_at) || 'In progress'}</td>
+                        </tr>
+                        <tr>
+                            <th>Sources:</th>
+                            <td>${sources.join(', ')}</td>
+                        </tr>
+                    </table>
+                </div>
+                <div class="col-md-6">
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title">Progress</h5>
+                            <div class="progress mb-3">
+                                <div class="progress-bar" role="progressbar" style="width: 20%" 
+                                    aria-valuenow="${progressPercentage}" aria-valuemin="0" aria-valuemax="100">
+                                    ${progressPercentage}%
+                                </div>
+                            </div>
+                            <p>
+                                <strong>Items Collected:</strong> ${run.pages_crawled} of ${run.pages_total || 'Unknown'}
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        ${getRunControlButtons(run)}
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        $('#runDetails').html(html);
+        
+        // Add event handlers for control buttons
+        $('#pauseRunBtn').click(function() {
+            pauseRun();
+        });
+        
+        $('#resumeRunBtn').click(function() {
+            resumeRun();
+        });
+        
+        $('#stopRunBtn').click(function() {
+            stopRun();
+        });
+    }
+    
+    function loadMarketingContent() {
+        // Calculate offset
+        const offset = (currentPage - 1) * itemsPerPage;
+        
+        // Get search query
+        const searchQuery = $('#searchInput').val();
+        
+        $.ajax({
+            url: `${API_BASE_URL}/runs/${runId}/pages?limit=${itemsPerPage}&offset=${offset}&order_by=crawled_at&order_dir=desc&include_snippet=true`,
+            type: 'GET',
+            success: function(data) {
+                totalItems = data.total;
+                renderMarketingContent(data.pages || []);
+                updatePagination();
+                updateSourceFilter(data.pages || []);
+            },
+            error: function() {
+                $('#contentTableBody').html('<tr><td colspan="5" class="text-center">Failed to load content</td></tr>');
+            }
+        });
+    }
+    
+    function renderMarketingContent(pages) {
+        if (pages.length === 0) {
+            $('#contentTableBody').html('<tr><td colspan="5" class="text-center">No content found</td></tr>');
+            return;
+        }
+        
+        // Filter by source if needed
+        if (currentFilter !== 'all') {
+            pages = pages.filter(page => {
+                const sourceType = page.page_metadata?.source_type || 'unknown';
+                return sourceType === currentFilter;
+            });
+            
+            if (pages.length === 0) {
+                $('#contentTableBody').html('<tr><td colspan="5" class="text-center">No content found for this source</td></tr>');
+                return;
+            }
+        }
+        
+        let html = '';
+        pages.forEach(page => {
+            // Get metadata
+            const metadata = page.page_metadata || {};
+            const sourceType = metadata.source_type || 'unknown';
+            const contentType = metadata.content_type || 'page';
+            
+            // Format source badge
+            let sourceBadge = '';
+            switch (sourceType) {
+                case 'web':
+                    sourceBadge = '<span class="badge bg-primary">Web</span>';
+                    break;
+                case 'pdf':
+                    sourceBadge = '<span class="badge bg-danger">PDF</span>';
+                    break;
+                case 'social':
+                    sourceBadge = '<span class="badge bg-info">Social</span>';
+                    break;
+                case 'video':
+                    sourceBadge = '<span class="badge bg-success">Video</span>';
+                    break;
+                case 'podcast':
+                    sourceBadge = '<span class="badge bg-warning">Podcast</span>';
+                    break;
+                case 'dataset':
+                    sourceBadge = '<span class="badge bg-secondary">Dataset</span>';
+                    break;
+                default:
+                    sourceBadge = `<span class="badge bg-light text-dark">${sourceType}</span>`;
+            }
+            
+            html += `
+                <tr>
+                    <td>${page.title || 'Untitled'}</td>
+                    <td>${sourceBadge}</td>
+                    <td>${contentType}</td>
+                    <td>
+                        <a href="${page.url}" target="_blank" class="text-truncate d-inline-block" style="max-width: 200px;">${page.url}</a>
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-primary view-content-btn" data-id="${page.id}">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+        
+        $('#contentTableBody').html(html);
+        
+        // Add event handlers for view buttons
+        $('.view-content-btn').click(function() {
+            const pageId = $(this).data('id');
+            viewContent(pageId);
+        });
+    }
+    
+    function updateSourceFilter(pages) {
+        // Get unique source types
+        const sourceTypes = new Set();
+        pages.forEach(page => {
+            const sourceType = page.page_metadata?.source_type || 'unknown';
+            sourceTypes.add(sourceType);
+        });
+        
+        // Only update if we have new source types
+        if (sourceTypes.size > 0) {
+            let html = '<li><a class="dropdown-item source-filter active" href="#" data-source="all">All Sources</a></li>';
+            
+            sourceTypes.forEach(sourceType => {
+                // Format source name
+                let sourceName = sourceType.charAt(0).toUpperCase() + sourceType.slice(1);
+                
+                html += `<li><a class="dropdown-item source-filter" href="#" data-source="${sourceType}">${sourceName}</a></li>`;
+            });
+            
+            $('#sourceFilterOptions').html(html);
+            
+            // Add event handlers for source filters
+            $('.source-filter').click(function(e) {
+                e.preventDefault();
+                
+                // Update active filter
+                $('.source-filter').removeClass('active');
+                $(this).addClass('active');
+                
+                // Update filter and reload
+                currentFilter = $(this).data('source');
+                $('#sourceFilterDropdown').text($(this).text());
+                
+                // Reset to first page
+                currentPage = 1;
+                loadMarketingContent();
+            });
+        }
+    }
+    
+    function updatePagination() {
+        // Update pagination info
+        const start = (currentPage - 1) * itemsPerPage + 1;
+        const end = Math.min(currentPage * itemsPerPage, totalItems);
+        $('#paginationInfo').text(`Showing ${start}-${end} of ${totalItems}`);
+        
+        // Update pagination controls
+        if (currentPage > 1) {
+            $('#prevPage').parent().removeClass('disabled');
+        } else {
+            $('#prevPage').parent().addClass('disabled');
+        }
+        
+        if (currentPage * itemsPerPage < totalItems) {
+            $('#nextPage').parent().removeClass('disabled');
+        } else {
+            $('#nextPage').parent().addClass('disabled');
+        }
+    }
+    
+    function loadSourceBreakdown() {
+        $.ajax({
+            url: `${API_BASE_URL}/marketing/run/${runId}/sources`,
+            type: 'GET',
+            success: function(data) {
+                renderSourceBreakdown(data);
+                renderSourceStats(data);
+            },
+            error: function() {
+                $('#sourcesBreakdownChart').html('<p class="text-center text-danger">Failed to load source breakdown</p>');
+                $('#sourceStats').html('<p class="text-center text-danger">Failed to load source statistics</p>');
+            }
+        });
+    }
+    
+    function renderSourceBreakdown(data) {
+        if (!data.sources || data.sources.length === 0) {
+            $('#sourcesBreakdownChart').html('<p class="text-center">No data available</p>');
+            return;
+        }
+        
+        // Create chart data
+        const labels = data.sources.map(s => s.name);
+        const values = data.sources.map(s => s.count);
+        const colors = [
+            '#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b', '#858796'
+        ];
+        
+        // Destroy existing chart if any
+        if (sourcesChart) {
+            sourcesChart.destroy();
+        }
+        
+        // Create chart
+        const ctx = document.createElement('canvas');
+        ctx.id = 'sourcesBreakdown';
+        ctx.height = 250;
+        $('#sourcesBreakdownChart').empty().append(ctx);
+        
+        sourcesChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: values,
+                    backgroundColor: colors,
+                    hoverBackgroundColor: colors.map(c => c + 'aa')
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                legend: {
+                    position: 'right'
+                },
+                tooltips: {
+                    callbacks: {
+                        label: function(tooltipItem, data) {
+                            const dataset = data.datasets[tooltipItem.datasetIndex];
+                            const total = dataset.data.reduce((acc, val) => acc + val, 0);
+                            const value = dataset.data[tooltipItem.index];
+                            const percentage = ((value / total) * 100).toFixed(1);
+                            return `${data.labels[tooltipItem.index]}: ${value} (${percentage}%)`;
+                        }
+                    }
+                }
+            }
+        });
+    }
+    
+    function renderSourceStats(data) {
+        if (!data.sources || data.sources.length === 0) {
+            $('#sourceStats').html('<p class="text-center">No data available</p>');
+            return;
+        }
+        
+        let html = '<div class="table-responsive"><table class="table table-sm table-striped">';
+        html += '<thead><tr><th>Source</th><th>Count</th><th>Percentage</th></tr></thead><tbody>';
+        
+        // Calculate total
+        const total = data.sources.reduce((acc, source) => acc + source.count, 0);
+        
+        // Add rows
+        data.sources.forEach(source => {
+            const percentage = ((source.count / total) * 100).toFixed(1);
+            html += `
+                <tr>
+                    <td>${source.name}</td>
+                    <td>${source.count}</td>
+                    <td>${percentage}%</td>
+                </tr>
+            `;
+        });
+        
+        html += '</tbody></table></div>';
+        
+        $('#sourceStats').html(html);
+    }
+    
+    function viewContent(pageId) {
+        $.ajax({
+            url: `${API_BASE_URL}/pages/${pageId}`,
+            type: 'GET',
+            success: function(data) {
+                // Set content
+                $('#contentTitle').text(data.title || 'Untitled');
+                $('#contentUrl').text(data.url).attr('href', data.url);
+                
+                // Get metadata
+                const metadata = data.page_metadata || {};
+                const sourceType = metadata.source_type || 'unknown';
+                
+                // Set source badge
+                let sourceBadgeClass = 'bg-secondary';
+                switch (sourceType) {
+                    case 'web':
+                        sourceBadgeClass = 'bg-primary';
+                        break;
+                    case 'pdf':
+                        sourceBadgeClass = 'bg-danger';
+                        break;
+                    case 'social':
+                        sourceBadgeClass = 'bg-info';
+                        break;
+                    case 'video':
+                        sourceBadgeClass = 'bg-success';
+                        break;
+                    case 'podcast':
+                        sourceBadgeClass = 'bg-warning';
+                        break;
+                    case 'dataset':
+                        sourceBadgeClass = 'bg-secondary';
+                        break;
+                }
+                
+                $('#contentSource')
+                    .text(sourceType.charAt(0).toUpperCase() + sourceType.slice(1))
+                    .removeClass()
+                    .addClass(`badge rounded-pill ${sourceBadgeClass}`);
+                
+                // Set content
+                $('#contentText').text(data.content_text || 'No content available');
+                $('#contentMetadata').text(JSON.stringify(metadata, null, 2));
+                $('#contentStructured').text(JSON.stringify(data.structured_data || {}, null, 2));
+                
+                // Show modal
+                new bootstrap.Modal(document.getElementById('contentModal')).show();
+                
+                // Reset active tab
+                $('#text-tab').tab('show');
+            },
+            error: function(xhr) {
+                let errorMsg = 'Failed to load content';
+                if (xhr.responseJSON && xhr.responseJSON.error) {
+                    errorMsg = xhr.responseJSON.error;
+                }
+                showError(errorMsg);
+            }
+        });
+    }
+    
+    function performSemanticSearch() {
+        const query = $('#semanticQuery').val().trim();
+        
+        if (!query) {
+            showError('Please enter a search query');
+            return;
+        }
+        
+        $.ajax({
+            url: `${API_BASE_URL}/marketing/search`,
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                query: query,
+                run_id: runId,
+                limit: 5
+            }),
+            success: function(data) {
+                renderSemanticResults(data);
+            },
+            error: function(xhr) {
+                let errorMsg = 'Failed to perform semantic search';
+                if (xhr.responseJSON && xhr.responseJSON.error) {
+                    errorMsg = xhr.responseJSON.error;
+                }
+                showError(errorMsg);
+            }
+        });
+    }
+    
+    function renderSemanticResults(data) {
+        const results = data.results || [];
+        
+        if (results.length === 0) {
+            $('#semanticResultsList').html('<p class="text-center">No results found</p>');
+            $('#semanticResults').show();
+            return;
+        }
+        
+        let html = '<div class="list-group">';
+        
+        results.forEach(result => {
+            const score = Math.round(result.score * 100);
+            
+            html += `
+                <a href="#" class="list-group-item list-group-item-action view-semantic-result" data-page-id="${result.page_id}">
+                    <div class="d-flex w-100 justify-content-between">
+                        <h6 class="mb-1">${result.title || 'Untitled'}</h6>
+                        <small>${score}% match</small>
+                    </div>
+                    <p class="mb-1 text-truncate">${result.url}</p>
+                    <small>${result.source_type} · ${result.content_type}</small>
+                </a>
+            `;
+        });
+        
+        html += '</div>';
+        
+        $('#semanticResultsList').html(html);
+        $('#semanticResults').show();
+        
+        // Add event handlers for results
+        $('.view-semantic-result').click(function(e) {
+            e.preventDefault();
+            const pageId = $(this).data('page-id');
+            viewContent(pageId);
+        });
+    }
+    
+    function pauseRun() {
+        $.ajax({
+            url: `${API_BASE_URL}/runs/${runId}/pause`,
+            type: 'POST',
+            success: function() {
+                loadRunDetails();
+            },
+            error: function(xhr) {
+                let errorMsg = 'Failed to pause run';
+                if (xhr.responseJSON && xhr.responseJSON.error) {
+                    errorMsg = xhr.responseJSON.error;
+                }
+                showError(errorMsg);
+            }
+        });
+    }
+    
+    function resumeRun() {
+        $.ajax({
+            url: `${API_BASE_URL}/runs/${runId}/resume`,
+            type: 'POST',
+            success: function() {
+                loadRunDetails();
+            },
+            error: function(xhr) {
+                let errorMsg = 'Failed to resume run';
+                if (xhr.responseJSON && xhr.responseJSON.error) {
+                    errorMsg = xhr.responseJSON.error;
+                }
+                showError(errorMsg);
+            }
+        });
+    }
+    
+    function stopRun() {
+        if (confirm('Are you sure you want to stop this run?')) {
+            $.ajax({
+                url: `${API_BASE_URL}/runs/${runId}/stop`,
+                type: 'POST',
+                success: function() {
+                    loadRunDetails();
+                },
+                error: function(xhr) {
+                    let errorMsg = 'Failed to stop run';
+                    if (xhr.responseJSON && xhr.responseJSON.error) {
+                        errorMsg = xhr.responseJSON.error;
+                    }
+                    showError(errorMsg);
+                }
+            });
+        }
+    }
+</script>
+{% endblock %}    <th>Title</th>
+                                <th>Source</th>
+                                <th>Type</th>
+                                <th>URL</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="contentTableBody">
+                            <tr>
+                                <td colspan="5" class="text-center">
+                                    <div class="spinner"></div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mt-3">
+                    <div>
+                        <span id="paginationInfo">Showing 1-20 of 0</span>
+                    </div>
+                    <div>
+                        <nav aria-label="Page navigation">
+                            <ul class="pagination" id="pagination">
+                                <li class="page-item disabled">
+                                    <a class="page-link" href="#" id="prevPage">Previous</a>
+                                </li>
+                                <li class="page-item disabled">
+                                    <a class="page-link" href="#" id="nextPage">Next</a>
+                                </li>
+                            </ul>
+                        </nav>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-chart-pie me-2"></i>Sources Breakdown
+                </h5>
+            </div>
+            <div class="card-body">
+                <div id="sourcesBreakdownChart" style="height: 250px;">
+                    <div class="text-center">
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+                
+                <div class="mt-4">
+                    <h6>Source Statistics</h6>
+                    <div id="sourceStats">
+                        <div class="text-center">
+                            <div class="spinner"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-search me-2"></i>Semantic Search
+                </h5>
+            </div>
+            <div class="card-body">
+                <form id="semanticSearchForm">
+                    <div class="mb-3">
+                        <label for="semanticQuery" class="form-label">Search Query</label>
+                        <input type="text" class="form-control" id="semanticQuery" placeholder="Enter search query">
+                    </div>
+                    <div class="d-grid">
+                        <button type="button" class="btn btn-primary" id="semanticSearchBtn">Search</button>
+                    </div>
+                </form>
+                
+                <div class="mt-3" id="semanticResults" style="display: none;">
+                    <h6>Search Results</h6>
+                    <div id="semanticResultsList">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Content View Modal -->
+<div class="modal fade" id="contentModal" tabindex="-1" aria-labelledby="contentModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="contentModalLabel">Content Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between">
+                        <h6 id="contentTitle"></h6>
+                        <span id="contentSource" class="badge rounded-pill bg-primary"></span>
+                    </div>
+                    <a href="#" target="_blank" id="contentUrl" class="text-truncate"></a>
+                </div>
+                <ul class="nav nav-tabs" id="contentTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="text-tab" data-bs-toggle="tab" data-bs-target="#text-content" type="button" role="tab" aria-controls="text-content" aria-selected="true">Text</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="metadata-tab" data-bs-toggle="tab" data-bs-target="#metadata-content" type="button" role="tab" aria-controls="metadata-content" aria-selected="false">Metadata</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="structured-tab" data-bs-toggle="tab" data-bs-target="#structured-content" type="button" role="tab" aria-controls="structured-content" aria-selected="false">Structured Data</button>
+                    </li>
+                </ul>
+                <div class="tab-content mt-3" id="contentTabsContent">
+                    <div class="tab-pane fade show active" id="text-content" role="tabpanel" aria-labelledby="text-tab">
+                        <pre class="page-content" id="contentText"></pre>
+                    </div>
+                    <div class="tab-pane fade" id="metadata-content" role="tabpanel" aria-labelledby="metadata-tab">
+                        <pre class="page-content" id="contentMetadata"></pre>
+                    </div>
+                    <div class="tab-pane fade" id="structured-content" role="tabpanel" aria-labelledby="structured-tab">
+                        <pre class="page-content" id="contentStructured"></pre>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Run ID
+    const runId = "{{ run_id }}";
+    
+    // Charts
+    let sourcesChart = null;
+    
+    // Pagination variables
+    let currentPage = 1;
+    let itemsPerPage = 20;
+    let totalItems = 0;
+    let refreshInterval;
+    let currentFilter = 'all';
+    
+    // Initial load
+    $(document).ready(function() {
+        loadRunDetails();
+        loadMarketingContent();
+        loadSourceBreakdown();
+        
+        // Set up auto-refresh
+        $('#autoRefreshSwitch').change(function() {
+            if ($(this).is(':checked')) {
+                startAutoRefresh();
+            } else {
+                stopAutoRefresh();
+            }
+        });
+        
+        startAutoRefresh();
+        
+        // Set up pagination
+        $('#prevPage').click(function(e) {
+            e.preventDefault();
+            if (currentPage > 1) {
+                currentPage--;
+                loadMarketingContent();
+            }
+        });
+        
+        $('#nextPage').click(function(e) {
+            e.preventDefault();
+            if (currentPage * itemsPerPage < totalItems) {
+                currentPage++;
+                loadMarketingContent();
+            }
+        });
+        
+        // Set up search
+        $('#searchBtn').click(function() {
+            currentPage = 1;
+            loadMarketingContent();
+        });
+        
+        $('#searchInput').keypress(function(e) {
+            if (e.which === 13) {
+                currentPage = 1;
+                loadMarketingContent();
+            }
+        });
+        
+        // Set up semantic search
+        $('#semanticSearchBtn').click(function() {
+            performSemanticSearch();
+        });
+        
+        $('#semanticQuery').keypress(function(e) {
+            if (e.which === 13) {
+                e.preventDefault();
+                performSemanticSearch();
+            }
+        });
+    });
+    
+    function startAutoRefresh() {
+        // Refresh every 10 seconds
+        refreshInterval = setInterval(function() {
+            loadRunDetails();
+            loadMarketingContent();
+            loadSourceBreakdown();
+        }, 10000);
+    }
+    
+    function stopAutoRefresh() {
+        clearInterval(refreshInterval);
+    }
+    
+    function loadRunDetails() {
+        $.ajax({
+            url: `${API_BASE_URL}/runs/${runId}`,
+            type: 'GET',
+            success: function(data) {
+                renderRunDetails(data);
+            },
+            error: function() {
+                $('#runDetails').html('<div class="alert alert-danger">Failed to load run details</div>');
+            }
+        });
+    }
+    function renderRunDetails(run) {
+        // Set run ID
+        $('#runIdBadge').text(`ID: ${run.id}`);
+        
+        // Set run details
+        const sources = run.sources || [];
+        const progressPercentage = Math.round((run.pages_crawled / (run.pages_total || 1)) * 100);
+        
+        let html = `
+            <div class="text-center">
+                <h5>${run.name}</h5>
+                <p>${run.description || 'No description available'}</p>
+            </div>
+            <table class="table table-sm table-striped">
+                <thead>
+                    <tr>
+                        <th>Completed:</th>
+                        <td>${formatDateTime(run.completed_at) || 'Not completed'}</td>
+                    </tr>
+                    <tr>
+                        <th>Duration:</th>
+                        <td>${formatDuration(run.created_at, run.completed_at) || 'In progress'}</td>
+                    </tr>
+                    <tr>
+                        <th>Sources:</th>
+                        <td>${sources.join(', ')}</td>
+                    </tr>
+                </thead>
+            </table>
+        `;
+        html += `
+            <div class="text-center">
+                <div class="progress mb-3">
+                    <div class="progress-bar" role="progressbar" style="width: ${progressPercentage}%" 
+                        aria-valuenow="${progressPercentage}" aria-valuemin="0" aria-valuemax="100">
+                        ${progressPercentage}%
+                    </div>
+                </div>
+                <p>
+                    <strong>Items Collected:</strong> ${run.pages_crawled} of ${run.pages_total || 'Unknown'}
+                </p>
+            </div>
+        `;
+    }

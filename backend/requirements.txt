@@ -27,3 +27,29 @@ coverage==7.3.1
 
 # Frontend (Optional)
 flask-cors==4.0.0
+
+# Marketing Data Collection Extensions
+## PDF Processing
+pdfplumber==0.10.2
+camelot-py==0.11.0
+PyPDF2==3.0.1
+
+## Social Media
+tweepy==4.14.0
+linkedin-api  # Optional, requires LinkedIn API access
+
+## Multimedia
+yt-dlp==2023.7.6
+whisper==1.1.10
+openai-whisper==20231117
+
+## Dataset Collection
+kaggle==1.5.16
+datasets
+pandas
+pandas-stubs
+
+## Utils
+requests
+python-dotenv
+tqdm
